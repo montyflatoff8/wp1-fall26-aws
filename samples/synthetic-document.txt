@@ -1,0 +1,3 @@
+This is a synthetic test document.
+It contains no real or personal data.
+It exists only to exercise the upload endpoint.
