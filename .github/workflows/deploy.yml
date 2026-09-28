@@ -18,7 +18,7 @@ permissions:
 env:
   AWS_REGION: us-east-1
   EB_APPLICATION: wp1-fall26-aws
-  EB_ENVIRONMENT: wp1-fall26-aws-dev
+  EB_ENVIRONMENT: wp1-fall26-env-dev
   API_PROJECT: src/Wp1Fall26Aws.Api
   API_DLL: Wp1Fall26Aws.Api.dll
 
