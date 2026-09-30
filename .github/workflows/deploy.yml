@@ -65,7 +65,7 @@ jobs:
       # an extra top-level folder deploys but never starts.
       - name: Package source bundle
         run: |
-          VERSION="${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          VERSION="${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA::7}"
           echo "VERSION_LABEL=$VERSION" >> "$GITHUB_ENV"
           echo "BUNDLE=wp1-$VERSION.zip" >> "$GITHUB_ENV"
           cd publish && zip -qr "../wp1-$VERSION.zip" . && cd ..
