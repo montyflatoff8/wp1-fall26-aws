@@ -1,18 +1,17 @@
-# Part 5 - deployment. This is a SECOND workflow. Your existing ci.yml
-# does not change: it keeps building and testing on every branch with no
-# AWS access, which is what makes your project clonable by anyone.
+# Build, test, and deploy. Pull requests to main run build-test only, with
+# no AWS access. A push to main runs build-test, then deploy only if every
+# test passes.
 
 name: Deploy to Elastic Beanstalk
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches: [main]        # only main deploys - feature branches just build in ci.yml
-  workflow_dispatch:        # lets you trigger a deploy by hand from the Actions tab
+    branches: [main]
 
-# Required for OpenID Connect. Without id-token: write, the request for a
-# temporary credential is refused and the error blames your role instead.
+# By default no job can get AWS credentials. Only the deploy job gets that right
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -22,13 +21,37 @@ env:
   API_PROJECT: src/Wp1Fall26Aws.Api
   API_DLL: Wp1Fall26Aws.Api.dll
 
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false   # never interrupt a deploy that is mid-flight
-
 jobs:
-  deploy:
+  build-test:
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore Wp1Fall26Aws.slnx
+      - name: Build
+        run: dotnet build Wp1Fall26Aws.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test Wp1Fall26Aws.slnx --configuration Release --no-build
+
+  deploy:
+    # Waits for build-test. If any test fails, this job is skipped.
+    needs: build-test
+    # Pull requests stop after build-test; only a push to main deploys.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Only this job may request AWS credentials. Job permissions replace the
+    # workflow's, so contents: read is repeated for checkout.
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false   # never interrupt a deploy that is mid-flight
 
     steps:
       - name: Check out
@@ -39,19 +62,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore
-        run: dotnet restore Wp1Fall26Aws.slnx
-
-      - name: Build
-        run: dotnet build Wp1Fall26Aws.slnx --configuration Release --no-restore
-
-      # Tests run here as well as in ci.yml. A failing test stops the
-      # deploy - broken code must never reach the server.
-      - name: Test
-        run: dotnet test Wp1Fall26Aws.slnx --configuration Release --no-build
-
+      # Fresh machine: nothing from build-test is here, so publish
+      # restores and builds by itself (no --no-build).
       - name: Publish
-        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output publish
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --output publish
 
       # The web server on Elastic Beanstalk forwards requests to port 5000,
       # but ASP.NET Core listens on 8080 by default. Binding explicitly
@@ -69,11 +83,6 @@ jobs:
           echo "VERSION_LABEL=$VERSION" >> "$GITHUB_ENV"
           echo "BUNDLE=wp1-$VERSION.zip" >> "$GITHUB_ENV"
           cd publish && zip -qr "../wp1-$VERSION.zip" . && cd ..
-
-      - name: Debug OIDC token claims
-        run: |
-          TOKEN=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq '{sub, aud, repository, ref}'
 
       # This is the moment the pipeline gets an AWS identity. No key is
       # stored anywhere - GitHub proves who it is, AWS checks that claim

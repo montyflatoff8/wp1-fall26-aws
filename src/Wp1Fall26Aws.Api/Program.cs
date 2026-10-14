@@ -74,3 +74,5 @@ app.MapPost("/documents", async (
 });
 
 app.Run();
+
+public partial class Program { }
