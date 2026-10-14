@@ -111,4 +111,21 @@ public class S3DocumentStoreTests
 
         Assert.Empty(fake.Calls);
     }
+
+    [Fact]
+    public async Task StoreAsync_KeyPrefixWithSurroundingSlashes_TrimsSlashesFromKey()
+    {
+        // Arrange
+        var options = Options.Create(new S3StorageOptions { BucketName = Bucket, KeyPrefix = "/custom/prefix/" });
+        var fake = new FakeS3ObjectClient();
+        var store = new S3DocumentStore(fake, new DocumentValidator(options), options);
+
+        // Act
+        var result = await store.StoreAsync(Upload());
+
+        // Assert
+        Assert.StartsWith("custom/prefix/", result.ObjectKey);
+        Assert.DoesNotContain("//", result.ObjectKey);
+        Assert.Equal(result.ObjectKey, Assert.Single(fake.Calls).Key);
+    }
 }

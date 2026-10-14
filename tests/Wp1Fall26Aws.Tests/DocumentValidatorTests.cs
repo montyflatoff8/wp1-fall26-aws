@@ -87,4 +87,17 @@ public class DocumentValidatorTests
             ],
             errors);
     }
+
+    [Fact]
+    public void Validate_FileNameWithoutExtension_ReturnsExtensionNotAllowedError()
+    {
+        // Arrange
+        var upload = Upload("README", "text/plain", 100);
+
+        // Act
+        var errors = Validator.Validate(upload);
+
+        // Assert
+        Assert.Equal(["Extension '' is not allowed."], errors);
+    }
 }
