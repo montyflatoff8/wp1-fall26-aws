@@ -98,6 +98,6 @@ public class DocumentValidatorTests
         var errors = Validator.Validate(upload);
 
         // Assert
-        Assert.Equal(["Extension '' is not allowed."], errors);
+        Assert.Equal(["This is deliberately wrong."], errors);
     }
 }
